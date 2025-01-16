@@ -8,7 +8,7 @@ const uint32_t BLOCK_DIM = 8;
 const uint32_t TILE_NUM = 8;
 static ge::graphStatus TilingFunc(gert::TilingContext *context)
 {
-    TilingData tiling;
+    SDPATilingData tiling;
     uint32_t totalLength = context->GetInputShape(0)->GetOriginShape().GetShapeSize();
     context->SetBlockDim(BLOCK_DIM);
     tiling.set_totalLength(totalLength);
