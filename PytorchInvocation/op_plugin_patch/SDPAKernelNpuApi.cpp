@@ -14,7 +14,7 @@
 namespace op_api {
 using npu_preparation = at_npu::native::OpPreparation;
 
-at::Tensor scaled_dot_product_attention(const at::Tensor &query, const at::Tensor &key, const at::Tensor &value)
+at::Tensor sdpa(const at::Tensor &query, const at::Tensor &key, const at::Tensor &value)
 {
     at::Tensor result = npu_preparation::apply_tensor_without_format(query); // Create output memory
 

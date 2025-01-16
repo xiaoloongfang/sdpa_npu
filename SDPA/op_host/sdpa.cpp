@@ -4,38 +4,39 @@
 
 
 namespace optiling {
-static ge::graphStatus TilingFunc(gert::TilingContext* context)
+const uint32_t BLOCK_DIM = 8;
+const uint32_t TILE_NUM = 8;
+static ge::graphStatus TilingFunc(gert::TilingContext *context)
 {
-  SDPATilingData tiling;
-  const gert::StorageShape* x1_shape = context->GetInputShape(0);
-  int32_t data_sz = 1;
-  for (int i = 0; i < x1_shape->GetStorageShape().GetDimNum(); i++)
-    data_sz *= x1_shape->GetStorageShape().GetDim(i);
-  tiling.set_size(data_sz);
-  context->SetBlockDim(8);
-  tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
-  context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
-
-  return ge::GRAPH_SUCCESS;
+    TilingData tiling;
+    uint32_t totalLength = context->GetInputShape(0)->GetOriginShape().GetShapeSize();
+    context->SetBlockDim(BLOCK_DIM);
+    tiling.set_totalLength(totalLength);
+    tiling.set_tileNum(TILE_NUM);
+    tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
+    context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
+    size_t *currentWorkspace = context->GetWorkspaceSizes(1);
+    currentWorkspace[0] = 0;
+    return ge::GRAPH_SUCCESS;
 }
-}
-
+} // namespace optiling
 
 namespace ge {
-static ge::graphStatus InferShape(gert::InferShapeContext* context)
+static graphStatus InferShape(gert::InferShapeContext *context)
 {
-    const gert::Shape* x1_shape = context->GetInputShape(0);
-    gert::Shape* y_shape = context->GetOutputShape(0);
+    const gert::Shape *x1_shape = context->GetInputShape(0);
+    gert::Shape *y_shape = context->GetOutputShape(0);
     *y_shape = *x1_shape;
     return GRAPH_SUCCESS;
 }
-static ge::graphStatus InferDataType(gert::InferDataTypeContext *context)
+
+static graphStatus InferDataType(gert::InferDataTypeContext *context)
 {
-const auto inputDataType = context->GetInputDataType(0);
-context->SetOutputDataType(0, inputDataType);
-return ge::GRAPH_SUCCESS;
+    const auto inputDataType = context->GetInputDataType(0);
+    context->SetOutputDataType(0, inputDataType);
+    return ge::GRAPH_SUCCESS;
 }
-}
+} // namespace ge
 
 
 namespace ops {
