@@ -12,11 +12,10 @@
 #include "register/tilingdata_base.h"
 
 namespace optiling {
-BEGIN_TILING_DATA_DEF(TilingData)
-TILING_DATA_FIELD_DEF(uint32_t, totalLength);
-TILING_DATA_FIELD_DEF(uint32_t, tileNum);
+BEGIN_TILING_DATA_DEF(SDPATilingData)
+  TILING_DATA_FIELD_DEF(uint32_t, size);
 END_TILING_DATA_DEF;
 
-REGISTER_TILING_DATA_CLASS(SDPA, TilingData)
-} // namespace optiling
+REGISTER_TILING_DATA_CLASS(SDPA, SDPATilingData)
+}// namespace optiling
 #endif // SDPA_TILING_H

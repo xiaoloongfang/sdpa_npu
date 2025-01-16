@@ -17,10 +17,11 @@ source $ASCEND_HOME_DIR/bin/setenv.bash
 
 # 当前示例使用Python-3.9版本
 PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}' | awk -F '.' '{print $1"."$2}')
-if [ "$PYTHON_VERSION" != "3.9" ]; then
-    echo "Error: Python3 version is not 3.9"
+if [[ ! "$PYTHON_VERSION" =~ ^3\.(9|10)$ ]]; then
+    echo "Error: Python3 version is not 3.9 or 3.10"
     exit 1
 fi
+
 # 当前示例使用Pytorch-2.1.0版本
 PYTORCH_VESION=$(pip3 show torch | grep "Version:" | awk '{print $2}' | awk -F '.' '{print $1"."$2"."$3}' | awk -F '+' '{print $1}')
 if [ "$PYTORCH_VESION" != "2.1.0" ]; then
@@ -51,10 +52,7 @@ function main() {
     # 3. PTA自定义算子注册
     FUNCTION_REGISTE_FIELD="op_plugin_patch/op_plugin_functions.yaml"
     FUNCTION_REGISTE_FILE="${PYTORCH_DIR}/third_party/op-plugin/op_plugin/config/op_plugin_functions.yaml"
-    line="  - func: npu_sdpa(Tensor x, Tensor y) -> Tensor"
-    if ! grep -q "\  $line" $FUNCTION_REGISTE_FILE; then
-        sed -i "/custom:/r   $FUNCTION_REGISTE_FIELD" $FUNCTION_REGISTE_FILE
-    fi
+    sed -i "/custom:/r   $FUNCTION_REGISTE_FIELD" $FUNCTION_REGISTE_FILE
 
     # 4. 编译PTA插件并安装
     cp -rf op_plugin_patch/*.cpp ${PYTORCH_DIR}/third_party/op-plugin/op_plugin/ops/opapi

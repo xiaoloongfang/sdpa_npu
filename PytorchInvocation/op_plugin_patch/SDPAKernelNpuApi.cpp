@@ -14,12 +14,12 @@
 namespace op_api {
 using npu_preparation = at_npu::native::OpPreparation;
 
-at::Tensor npu_sdpa(const at::Tensor &x, const at::Tensor &y)
+at::Tensor scaled_dot_product_attention(const at::Tensor &query, const at::Tensor &key, const at::Tensor &value)
 {
-    at::Tensor result = npu_preparation::apply_tensor_without_format(x); // Create output memory
+    at::Tensor result = npu_preparation::apply_tensor_without_format(query); // Create output memory
 
     // calculate the output result of the NPU
-    EXEC_NPU_CMD(aclnnSDPA, x, y, result);
+    EXEC_NPU_CMD(aclnnSDPA, query, key, value, result);
     return result;
 }
 } // namespace op_api

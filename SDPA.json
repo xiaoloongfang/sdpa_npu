@@ -4,7 +4,7 @@
         "language": "cpp",
         "input_desc": [
             {
-                "name": "x",
+                "name": "query",
                 "param_type": "required",
                 "format": [
                     "ND"
@@ -14,7 +14,17 @@
                 ]
             },
             {
-                "name": "y",
+                "name": "key",
+                "param_type": "required",
+                "format": [
+                    "ND"
+                ],
+                "type": [
+                    "float16"
+                ]
+            },
+            {
+                "name": "value",
                 "param_type": "required",
                 "format": [
                     "ND"
@@ -26,7 +36,7 @@
         ],
         "output_desc": [
             {
-                "name": "z",
+                "name": "attn",
                 "param_type": "required",
                 "format": [
                     "ND"

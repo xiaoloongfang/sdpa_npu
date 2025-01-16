@@ -1,2 +1,2 @@
-  - func: npu_sdpa(Tensor x, Tensor y) -> Tensor
+  - func: scaled_dot_product_attention(Tensor query, Tensor key, Tensor value) -> Tensor
     op_api: all_version
