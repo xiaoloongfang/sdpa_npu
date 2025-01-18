@@ -1,9 +1,3 @@
-/**
- * @file spda.cpp
- *
- */
-#include<algorithm>
-
 #include "kernel_operator.h"
 
 // half type, cube block: [16, 16]
@@ -12,65 +6,46 @@ constexpr uint32_t CUBE_BLOCK_SIZE = 16 * 16;
 
 class KernelSDPA {
 public:
-    __aicore__ inline KernelSDPA(uint32_t batch_num, uint32_t head_num, uint32_t N, uint32_t d, uint64_t Bc, uint64_t Br)
+    __aicore__ inline KernelSDPA()
     {
-        this->batch_num = batch_num;
-        this->head_num = head_num;
-        this->N = N;
-        this->d = d;
-        this->Bc = Bc;
-        this->Br = Br;
-
-        this->cache_size = uint64_t(64 * 1024)
-
-        split_query_num = uint32_t(N-1) / Br + 1;
-        split_value_num = uint32_t(N-1) / Bc + 1;
-
+        aSize = m * k;
+        bSize = k * n;
+        cSize = m * n;
+        mBlocks = ((m-1) / 64)+1;
+        nBlocks = ((n-1) / 64)+1;
+        kBlocks = ((k-1) / 64)+1;
     }
-    __aicore__ inline void Init(GM_ADDR query, GM_ADDR key, GM_ADDR value, GM_ADDR attn);
+    __aicore__ inline void Init(GM_ADDR a, GM_ADDR b, GM_ADDR c)
     {
-        queryGM.SetGlobalBuffer((__gm__ half*)query);
-        keyGM.SetGlobalBuffer((__gm__ half*)key);
-        valueGM.SetGlobalBuffer((__gm__ half*)value);
-        attnGM.SetGlobalBuffer((__gm__ half*)attn);
-
-        pipe.InitBuffer(inQueueA1, 1, Br * d * sizeof(half));
-        pipe.InitBuffer(inQueueA2, 1, Br * d * sizeof(half));
-        pipe.InitBuffer(inQueueB1, 1, Bc * d * sizeof(half));
-        pipe.InitBuffer(inQueueB2, 1, Bc * d * sizeof(half));
-        pipe.InitBuffer(outQueueCO1, 1, Br * Bc * sizeof(half));
-        pipe.InitBuffer(outQueueCO2, 1, Br * Bc * sizeof(half));
+        aGM.SetGlobalBuffer((__gm__ half*)a);
+        bGM.SetGlobalBuffer((__gm__ half*)b);
+        cGM.SetGlobalBuffer((__gm__ half*)c);
+        pipe.InitBuffer(inQueueA1, 1, aSize * sizeof(half));
+        pipe.InitBuffer(inQueueA2, 1, aSize * sizeof(half));
+        pipe.InitBuffer(inQueueB1, 1, bSize * sizeof(half));
+        pipe.InitBuffer(inQueueB2, 2, bSize * sizeof(half) / 2);
+        pipe.InitBuffer(outQueueCO1, 2, cSize * sizeof(half) / 2);
+        pipe.InitBuffer(outQueueCO2, 1, cSize * sizeof(half));
     }
     __aicore__ inline void Process()
     {
-        
-        for(uint32_t i = 0; i < batch_num; i++){
-            for(uint32_t j = 0; j < head_num; j++){
-                for (uint32_t c = 0; c < split_query_num; c++){
-                    // 在这个里面分块计算，确保能够命中L2cache，加速！
-                    CopyIn(i, j, c);
-                }
-                
-            }
+        CopyIn();
+        SplitA();
+
+        AscendC::LocalTensor<half> b1Local = inQueueB1.DeQue<half>();
+        AscendC::LocalTensor<half> a2Local = inQueueA2.DeQue<half>();
+        AscendC::LocalTensor<half> c2Local = outQueueCO2.AllocTensor<half>();
+        // split matrix b into 2 parts, [32, 16] and [32, 16]
+        for (int i = 0; i < 2; ++i) {
+            SplitB(b1Local, i);
+            Compute(a2Local);
+            Aggregate(c2Local, i);
         }
+        inQueueB1.FreeTensor(b1Local);
+        inQueueA2.FreeTensor(a2Local);
+        outQueueCO2.EnQue<half>(c2Local);
 
-        // CopyIn();
-        // SplitA();
-
-        // AscendC::LocalTensor<half> b1Local = inQueueB1.DeQue<half>();
-        // AscendC::LocalTensor<half> a2Local = inQueueA2.DeQue<half>();
-        // AscendC::LocalTensor<half> c2Local = outQueueCO2.AllocTensor<half>();
-        // // split matrix b into 2 parts, [32, 16] and [32, 16]
-        // for (int i = 0; i < 2; ++i) {
-        //     SplitB(b1Local, i);
-        //     Compute(a2Local);
-        //     Aggregate(c2Local, i);
-        // }
-        // inQueueB1.FreeTensor(b1Local);
-        // inQueueA2.FreeTensor(a2Local);
-        // outQueueCO2.EnQue<half>(c2Local);
-
-        // CopyOut();
+        CopyOut();
     }
 
 private:
@@ -83,18 +58,13 @@ private:
             AscendC::DataCopy(dst[dstOffset], src[srcOffset], { height, 1, uint16_t(width / 16 - 1), 0 });
         }
     }
-    __aicore__ inline void CopyIn(uint32_t i, uint32_t j, uint32_t c)
+    __aicore__ inline void CopyIn()
     {
         AscendC::LocalTensor<half> a1Local = inQueueA1.AllocTensor<half>();
         AscendC::LocalTensor<half> b1Local = inQueueB1.AllocTensor<half>();
 
-        // CopyND2NZ(a1Local, aGM, m, k);
-        // CopyND2NZ(b1Local, bGM, k, n);
-
-        int srcOffset = i*head_num*N*d + j*N*d + c*d;
-        int dstOffset = 0;
-        AscendC::DataCopy(a1Local[dstOffset], queryGM[srcOffset], { d, 1, 0, 0 });
-        AscendC::DataCopy(a2Local[dstOffset], valusGM[srcOffset], { d, 1, 0, 0 });
+        CopyND2NZ(a1Local, aGM, m, k);
+        CopyND2NZ(b1Local, bGM, k, n);
 
         inQueueA1.EnQue(a1Local);
         inQueueB1.EnQue(b1Local);
@@ -186,37 +156,20 @@ private:
     AscendC::TQue<AscendC::QuePosition::CO1, 2> outQueueCO1;
     AscendC::TQue<AscendC::QuePosition::CO2, 1> outQueueCO2;
 
-    AscendC::GlobalTensor<half> queryGM, keyGM, valueGM, attnGM;
+    AscendC::GlobalTensor<half> aGM, bGM;
+    AscendC::GlobalTensor<half> cGM;
+
+    uint16_t m = 1;
+    uint16_t n = 1;
+    uint16_t k = 4096;
 
     uint16_t aSize, bSize, cSize, mBlocks, nBlocks, kBlocks;
 
-    uint32_t batch_num, head_num, N, d;
-
-    uint64_t split_query_num, split_key_num, Bc, Br, cache_size;
-    
 };
 
 extern "C" __global__ __aicore__ void sdpa(GM_ADDR query, GM_ADDR key, GM_ADDR value, GM_ADDR attn, GM_ADDR workspace, GM_ADDR tiling) {
     GET_TILING_DATA(tiling_data, tiling);
-
-    uint32_t batch_num =  tiling_data.batch_num;
-    uint32_t head_num  =  tiling_data.head_num;
-    uint32_t N         =  tiling_data.N;
-    uint32_t d         =  tiling_data.d;
-
-    uint64_t ub_size   =  tiling_data.ub_size;
-    uint64_t l1_size   =  tiling_data.l1_size;
-    uint64_t l2_size   =  tiling_data.l2_size;
-    uint64_t l0a_size  =  tiling_data.l0a_size;
-    uint64_t l0b_size  =  tiling_data.l0b_size;
-    uint64_t l0c_size  =  tiling_data.l0c_size;
-
-    // 
-    uint64_t Bc = min(min(l2_size / (2 * d * 4), N), 64);
-    uint64_t Br = min(min(Bc, d), 64);
-
-
-    KernelSDPA op(batch_num, head_num, N, d, Bc, Br);
-    op.Init(query, key, value, attn, batch_num, head_num, N, d, Bc, Br);
+    KernelSDPA op;
+    op.Init(query, key, attn);
     op.Process();
 }
