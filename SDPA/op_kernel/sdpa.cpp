@@ -74,15 +74,15 @@ public:
     }
 
 private:
-    __aicore__ inline void CopyND2NZ(const AscendC::LocalTensor<half>& dst, const AscendC::GlobalTensor<half>& src,
-        const uint16_t height, const uint16_t width)
-    {
-        for (int i = 0; i < width / 16; ++i) {
-            int srcOffset = i * 16;
-            int dstOffset = i * 16 * height;
-            AscendC::DataCopy(dst[dstOffset], src[srcOffset], { height, 1, uint16_t(width / 16 - 1), 0 });
-        }
-    }
+    // __aicore__ inline void CopyND2NZ(const AscendC::LocalTensor<half>& dst, const AscendC::GlobalTensor<half>& src,
+    //     const uint16_t height, const uint16_t width)
+    // {
+    //     for (int i = 0; i < width / 16; ++i) {
+    //         int srcOffset = i * 16;
+    //         int dstOffset = i * 16 * height;
+    //         AscendC::DataCopy(dst[dstOffset], src[srcOffset], { height, 1, uint16_t(width / 16 - 1), 0 });
+    //     }
+    // }
     __aicore__ inline void CopyIn(uint32_t i, uint32_t j, uint32_t c)
     {
         AscendC::LocalTensor<half> a1Local = inQueueA1.AllocTensor<half>();
@@ -91,10 +91,32 @@ private:
         // CopyND2NZ(a1Local, aGM, m, k);
         // CopyND2NZ(b1Local, bGM, k, n);
 
-        int srcOffset = i*head_num*N*d + j*N*d + c*d;
-        int dstOffset = 0;
-        AscendC::DataCopy(a1Local[dstOffset], queryGM[srcOffset], { d, 1, 0, 0 });
-        AscendC::DataCopy(a2Local[dstOffset], valusGM[srcOffset], { d, 1, 0, 0 });
+        // int srcOffset = i*head_num*N*d + j*N*d + c*d;
+        // int dstOffset = 0;
+        // AscendC::DataCopy(a1Local[dstOffset], queryGM[srcOffset], { d, 1, 0, 0 });
+        // AscendC::DataCopy(a2Local[dstOffset], valusGM[srcOffset], { d, 1, 0, 0 });
+
+        AscendC::Nd2NzParams nd2nzA1Params;
+        nd2nzA1Params.ndNum = 1;
+        nd2nzA1Params.nValue = Br;
+        nd2nzA1Params.dValue = d;
+        nd2nzA1Params.srcNdMatrixStride = 0;
+        nd2nzA1Params.srcDValue = d;
+        nd2nzA1Params.dstNzC0Stride = CeilCubeBlock(m) * CUBE_BLOCK;
+        nd2nzA1Params.dstNzNStride = 1;
+        nd2nzA1Params.dstNzMatrixStride = 0;
+        AscendC::DataCopy(a1Local, aGM, nd2nzA1Params);
+
+        AscendC::Nd2NzParams nd2nzB1Params;
+        nd2nzB1Params.ndNum = 1;
+        nd2nzB1Params.nValue = d;
+        nd2nzB1Params.dValue = Bc;
+        nd2nzB1Params.srcNdMatrixStride = 0;
+        nd2nzB1Params.srcDValue = N;
+        nd2nzB1Params.dstNzC0Stride = CeilCubeBlock(k) * CUBE_BLOCK;
+        nd2nzB1Params.dstNzNStride = 1;
+        nd2nzB1Params.dstNzMatrixStride = 0;
+        AscendC::DataCopy(b1Local, bGM, nd2nzB1Params);
 
         inQueueA1.EnQue(a1Local);
         inQueueB1.EnQue(b1Local);
