@@ -1,6 +1,7 @@
 
 #include "sdpa_tiling.h"
 #include "register/op_def_registry.h"
+#include "tiling/platform/platform_ascendc.h"
 
 
 namespace optiling {
@@ -36,9 +37,9 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context)
     tiling.set_ub_size(ub_size);
     tiling.set_l1_size(l1_size);
     tiling.set_l2_size(l2_size);
-    tiling.l0a_size(l0a_size);
-    tiling.l0b_size(l0b_size);
-    tiling.l0c_size(l0c_size);
+    tiling.set_l0a_size(l0a_size);
+    tiling.set_l0b_size(l0b_size);
+    tiling.set_l0c_size(l0c_size);
 
     tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
     context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
